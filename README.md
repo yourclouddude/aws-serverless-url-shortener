@@ -19,11 +19,11 @@ You will build a URL shortener with **Amazon API Gateway, AWS Lambda, Amazon Dyn
 
 ```mermaid
 flowchart LR
-    U[Client] --> A[API Gateway HTTP API]
-    A -->|POST /links| C[Create Lambda]
-    A -->|GET /{code}| R[Redirect Lambda]
-    A -->|GET /health| H[Health Lambda]
-    C --> D[(DynamoDB)]
+    U["Client"] --> A["API Gateway HTTP API"]
+    A -->|"POST /links"| C["Create Lambda"]
+    A -->|"GET /:code"| R["Redirect Lambda"]
+    A -->|"GET /health"| H["Health Lambda"]
+    C --> D[("DynamoDB")]
     R --> D
 ```
 
