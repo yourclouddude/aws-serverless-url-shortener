@@ -7,7 +7,13 @@ from typing import Any
 
 from botocore.exceptions import ClientError
 
-from common import get_table, json_response, parse_expiry_days, parse_json_body, validate_destination_url
+from common import (
+    get_table,
+    json_response,
+    parse_expiry_days,
+    parse_json_body,
+    validate_destination_url,
+)
 
 ALPHABET = string.ascii_letters + string.digits
 CODE_LENGTH = 8
