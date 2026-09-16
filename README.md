@@ -1,20 +1,36 @@
-# AWS Serverless URL Shortener
+<div align="center">
 
-A small AWS project built around one simple question: **what does a URL shortener look like when you stop treating it like a toy script and start thinking about collisions, expiration, IAM, and failure?**
+<img width="100%" src="https://capsule-render.vercel.app/api?type=waving&height=210&color=0:FF9900,50:7C3AED,100:2563EB&text=AWS%20Serverless%20URL%20Shortener&fontColor=ffffff&fontSize=38&fontAlignY=36&desc=Small%20API.%20Real%20engineering%20decisions.&descAlignY=57&descSize=17&animation=fadeIn" alt="AWS Serverless URL Shortener" />
 
-The API itself is intentionally small. The interesting part is the engineering around it.
+![AWS](https://img.shields.io/badge/AWS-FF9900?style=for-the-badge&logo=amazonwebservices&logoColor=white)
+![Lambda](https://img.shields.io/badge/Lambda-FF9900?style=for-the-badge&logo=awslambda&logoColor=white)
+![API Gateway](https://img.shields.io/badge/API_Gateway-FF4F8B?style=for-the-badge&logo=amazonapigateway&logoColor=white)
+![DynamoDB](https://img.shields.io/badge/DynamoDB-4053D6?style=for-the-badge&logo=amazondynamodb&logoColor=white)
+![Python](https://img.shields.io/badge/Python-3776AB?style=for-the-badge&logo=python&logoColor=white)
+![SAM](https://img.shields.io/badge/AWS_SAM-232F3E?style=for-the-badge&logo=amazonaws&logoColor=white)
 
-```text
-Client → API Gateway → Lambda → DynamoDB
-```
+**A serverless URL shortener built to explore collisions, expiration, IAM boundaries, failure modes, and scaling decisions—not just the happy path.**
 
-There are separate Lambda functions for creating links, resolving them, and checking health. AWS SAM defines the infrastructure so you can inspect the API routes, DynamoDB table, permissions, and runtime settings in one place.
+[![Profile](https://img.shields.io/badge/←_YourCloudDude_Profile-111827?style=flat-square&logo=github&logoColor=white)](https://github.com/yourclouddude)
+[![Website](https://img.shields.io/badge/Website-2563EB?style=flat-square&logo=googlechrome&logoColor=white)](https://yourclouddude.com/)
 
-## Why this architecture
+</div>
 
-A URL shortener does not need a complicated stack to be useful as an AWS project.
+---
 
-API Gateway handles the HTTP boundary, Lambda keeps the compute event-driven, and DynamoDB fits the access pattern well: given a short code, fetch one record quickly. That makes the project a good place to focus on the decisions that are easy to gloss over in beginner demos.
+## Why this project exists
+
+A URL shortener looks simple until you ask the questions that production systems eventually force you to answer:
+
+- What if two requests generate the same short code?
+- What if DynamoDB TTL has not removed an expired item yet?
+- What permissions does each Lambda actually need?
+- What becomes the bottleneck when traffic grows?
+- What would need to change before anonymous public use?
+
+The API stays intentionally small so those engineering decisions remain visible.
+
+## Architecture
 
 ```mermaid
 flowchart LR
@@ -26,37 +42,39 @@ flowchart LR
     R --> D
 ```
 
-The important design choices are not the boxes in the diagram. They are what happens when two requests generate the same code, when an expired item still exists in DynamoDB, or when a function receives more permissions than it actually needs.
+<div align="center">
 
-## Creating a short link
+`Client → API Gateway → Lambda → DynamoDB`
 
-A client sends `POST /links` with a destination URL.
+</div>
 
-The create function validates the input, generates a cryptographically random short code, and writes the record with a DynamoDB conditional expression. The condition matters because random generation does not make collisions impossible. If a code already exists, the function retries instead of overwriting someone else's link.
+| Layer | Responsibility |
+|---|---|
+| API Gateway | HTTP boundary and routing |
+| Lambda | Link creation, redirect resolution, health checks |
+| DynamoDB | Short-code lookup and expiration metadata |
+| AWS SAM | Infrastructure, permissions, runtime configuration |
+| GitHub Actions | Linting, tests, validation, build checks |
 
-That is the difference between:
+## Key engineering decisions
 
-```text
-generate code → write item
-```
+### Collision-safe writes
 
-and the safer version used here:
+Random short-code generation lowers collision probability; it does not make collisions impossible. Creation uses a DynamoDB conditional expression so an existing link is never silently overwritten.
 
 ```text
 generate code → conditional write → retry on collision
 ```
 
-## Resolving a link
+### Application-level expiration
 
-A request to `GET /{code}` reads the matching DynamoDB item and returns an HTTP `302` redirect when the link is valid.
+DynamoDB TTL cleanup is asynchronous. The redirect Lambda therefore checks `expires_at` itself instead of assuming an item is valid simply because it still exists.
 
-DynamoDB TTL is enabled on `expires_at`, but the redirect function **still checks expiration itself**. TTL cleanup is asynchronous. An expired item can remain in the table for a while, so using "item still exists" as the definition of "link is valid" would be incorrect.
+### Narrow IAM boundaries
 
-That small detail is one of the main reasons this project exists.
+The create and redirect paths do not receive identical permissions. The create path writes records, while the redirect path reads them. Credentials are never stored in source code.
 
-## The data model
-
-Each item uses the short code as the partition key:
+### Simple data model
 
 ```json
 {
@@ -67,21 +85,18 @@ Each item uses the short code as the partition key:
 }
 ```
 
-The access pattern is deliberately boring: one short code maps to one destination. There is no relational model to justify here, and that is exactly why DynamoDB is a reasonable fit.
+One short code maps to one destination. The access pattern is intentionally straightforward, which is exactly why DynamoDB is a reasonable fit.
 
-## Run it locally first
+## Run locally
 
-You need Python 3.13+, the AWS CLI, and AWS SAM CLI for the full workflow.
+### Requirements
 
-Create a virtual environment:
+- Python 3.13+
+- AWS CLI
+- AWS SAM CLI
 
 ```bash
 python -m venv .venv
-```
-
-Activate it, then install the development dependencies and run the checks:
-
-```bash
 pip install -r requirements-dev.txt
 python -m ruff check src tests
 python -m pytest -q
@@ -91,15 +106,13 @@ sam build
 
 GitHub Actions runs the same quality gates on repository changes.
 
-## Deploy it
-
-For a first deployment:
+## Deploy
 
 ```bash
 sam deploy --guided
 ```
 
-SAM will ask for the stack name, AWS Region, and deployment settings. Use credentials from the normal AWS credential chain, AWS SSO, or another supported provider. Do not place long-lived credentials in the repository.
+Use credentials from the normal AWS credential chain, AWS SSO, or another supported provider. Never place long-lived AWS credentials in this repository.
 
 After deployment, CloudFormation outputs the API endpoint.
 
@@ -109,7 +122,7 @@ After deployment, CloudFormation outputs the API endpoint.
 curl https://YOUR_API_ID.execute-api.YOUR_REGION.amazonaws.com/health
 ```
 
-### Create a link
+### Create a short link
 
 ```bash
 curl -X POST \
@@ -128,7 +141,7 @@ Example response:
 }
 ```
 
-Then follow it:
+Follow the redirect:
 
 ```bash
 curl -i https://YOUR_API_ID.execute-api.YOUR_REGION.amazonaws.com/aB3xQ7zK
@@ -136,80 +149,47 @@ curl -i https://YOUR_API_ID.execute-api.YOUR_REGION.amazonaws.com/aB3xQ7zK
 
 A valid link returns `302` with the destination in the `Location` header.
 
-## Permissions are part of the project
+## Security boundaries
 
-The create and redirect functions do not need identical DynamoDB permissions, so the SAM template does not give them identical access.
+The learning version starts with sane defaults instead of treating security as a later decoration:
 
-The project keeps the boundary narrow:
-
-- the create path can write link records
-- the redirect path reads records
-- credentials are not stored in source code
 - only `http` and `https` destinations are accepted
 - input length is capped
 - conditional writes prevent collision overwrites
+- create and redirect Lambdas receive different DynamoDB permissions
+- credentials stay outside source control
 
-That does not make this a hardened public URL-shortening service. It means the learning version starts with sane boundaries instead of fixing obviously unsafe defaults later.
+This is **not** presented as a hardened anonymous public URL-shortening service.
 
-## What would break first on the public internet?
+## What breaks first on the public internet?
 
-Abuse, not DynamoDB scale.
+Usually abuse—not DynamoDB scale.
 
-A public creation endpoint would need decisions around authentication, quotas, malicious destinations, bot traffic, and observability before "how many redirects can this handle?" becomes the most interesting question.
+Before exposing link creation publicly, consider authentication, quotas, malicious-destination controls, throttling, abuse detection, alarms, dashboards, WAF where appropriate, a custom domain, and asynchronous analytics.
 
-Before exposing this beyond a controlled learning deployment, consider:
+## Scaling questions worth exploring
 
-- authentication or API keys for link creation
-- API throttling and abuse detection
-- domain or block-list validation
-- AWS WAF where it actually fits the threat model
-- CloudWatch alarms and operational dashboards
-- a custom domain and TLS setup
-- asynchronous analytics rather than adding work to the redirect path
+At low traffic, API Gateway + Lambda + DynamoDB keeps operations simple. As traffic grows, the interesting questions become Lambda concurrency, DynamoDB throttling, API latency, hot keys, abuse, observability cost, and cache behavior.
 
-The repository does not pretend those controls already exist.
+Popular redirects could benefit from edge caching, but caching introduces expiration and invalidation trade-offs. A multi-Region design would add decisions around routing, replication, consistency, and recovery.
 
-## A few scaling decisions worth noticing
+## Experiments to try next
 
-At low traffic, API Gateway + Lambda + DynamoDB keeps operations simple.
+1. Add custom aliases and define alias-collision behavior.
+2. Publish redirect events to SQS or EventBridge for asynchronous analytics.
+3. Add API throttling and inspect behavior under repeated requests.
+4. Put CloudFront in front of redirects and study cache-expiration trade-offs.
+5. Rebuild the infrastructure in Terraform and compare the workflow with SAM.
 
-As traffic grows, the questions change: Lambda concurrency, DynamoDB throttling, API latency, hot keys, abuse, and observability cost start to matter. If a small set of links becomes extremely popular, edge caching can reduce repeated reads, but caching also changes expiration and invalidation behavior.
-
-For a multi-Region service, the design would need another round of decisions around routing, replication, consistency, and failure recovery. Those are intentionally outside this version.
-
-## Cost and cleanup
-
-This project uses serverless services because they fit the workload, not because they are magically free. Charges can come from API Gateway requests, Lambda execution, DynamoDB requests/storage, CloudWatch, and data transfer depending on usage and Region.
-
-When you are finished experimenting:
-
-```bash
-sam delete
-```
-
-Review current AWS pricing before deploying anything you plan to leave running.
-
-## Try changing one thing at a time
-
-Good next experiments are the ones that force a new engineering decision rather than simply adding another AWS icon.
-
-For example:
-
-1. add custom aliases such as `/aws-roadmap` and decide how to handle alias collisions
-2. publish redirect events to SQS or EventBridge so analytics stay off the redirect path
-3. add throttling and observe how API Gateway behavior changes under repeated requests
-4. put CloudFront in front of redirects and work through cache-expiration trade-offs
-5. rebuild the infrastructure in Terraform and compare the workflow with SAM
-
-## Questions you should be able to answer after building it
+## Questions you should be able to answer
 
 - Why is DynamoDB a good fit for this access pattern?
-- Why does the create function use a conditional write even though the code is random?
-- Why check `expires_at` when DynamoDB TTL is already enabled?
-- What permissions does each Lambda actually need?
-- Where would you put click analytics without slowing down redirects?
-- What would you add before allowing anonymous users to create links?
-- When would caching help, and what new consistency problem would it introduce?
+- Why use a conditional write if the code is random?
+- Why check `expires_at` when TTL is enabled?
+- Which permissions belong to each Lambda?
+- Where should click analytics live without slowing redirects?
+- What needs to change before anonymous link creation?
+- When would caching help, and what consistency problem would it introduce?
 
 ## Repository map
 
@@ -226,16 +206,33 @@ For example:
 │   └── redirect.py
 ├── tests/
 │   └── test_handlers.py
-├── .gitignore
 ├── pyproject.toml
 ├── requirements-dev.txt
 └── template.yaml
 ```
 
-For common SAM, IAM, DynamoDB, and local-test problems, see [`docs/troubleshooting.md`](docs/troubleshooting.md).
+For common SAM, IAM, DynamoDB, and local-test issues, see [`docs/troubleshooting.md`](docs/troubleshooting.md).
 
-## YourCloudDude
+## Cost & cleanup
 
-YourCloudDude builds practical AWS, cloud, and Python projects around one idea: **build it, understand the decisions, then explain why it works.**
+Serverless does not mean free. Depending on usage and Region, charges can come from API Gateway, Lambda, DynamoDB, CloudWatch, storage, and data transfer.
 
-Website: https://yourclouddude.com/
+```bash
+sam delete
+```
+
+Review current AWS pricing before leaving a learning deployment running.
+
+---
+
+<div align="center">
+
+### YourCloudDude
+
+**Build it. Understand the decisions. Explain why it works.**
+
+[![Website](https://img.shields.io/badge/yourclouddude.com-2563EB?style=for-the-badge&logo=googlechrome&logoColor=white)](https://yourclouddude.com/)
+
+<img width="100%" src="https://capsule-render.vercel.app/api?type=waving&height=105&section=footer&color=0:2563EB,50:7C3AED,100:FF9900" alt="footer" />
+
+</div>
