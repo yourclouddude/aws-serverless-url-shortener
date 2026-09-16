@@ -1,0 +1,47 @@
+name: Bug report
+description: Report a reproducible problem in the URL shortener project
+title: "[Bug]: "
+body:
+  - type: markdown
+    attributes:
+      value: |
+        Thanks for reporting a problem. Do not include AWS credentials, tokens, or other secrets.
+  - type: textarea
+    id: summary
+    attributes:
+      label: What happened?
+      description: Describe the observed behavior and what you expected instead.
+    validations:
+      required: true
+  - type: textarea
+    id: reproduce
+    attributes:
+      label: Steps to reproduce
+      description: Include the request, command, or sequence that consistently triggers the issue.
+      placeholder: |
+        1. Run ...
+        2. Send ...
+        3. Observe ...
+    validations:
+      required: true
+  - type: input
+    id: environment
+    attributes:
+      label: Environment
+      description: Python, AWS SAM CLI, AWS Region, and OS versions when relevant.
+      placeholder: "Python 3.13, SAM CLI ..., us-east-1, macOS"
+  - type: textarea
+    id: logs
+    attributes:
+      label: Relevant logs or output
+      description: Redact account IDs, credentials, tokens, URLs containing secrets, and personal data.
+      render: shell
+  - type: checkboxes
+    id: checks
+    attributes:
+      label: Safety checks
+      options:
+        - label: I removed credentials, tokens, and other secrets from this report.
+          required: true
+        - label: I checked the existing issues before opening this one.
+          required: true
