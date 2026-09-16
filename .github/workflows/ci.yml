@@ -36,7 +36,7 @@ jobs:
         run: python -m pytest -q
 
       - name: Setup AWS SAM
-        uses: aws-actions/setup-sam@v2
+        uses: aws-actions/setup-sam@v3
 
       - name: Validate SAM template
         run: sam validate --lint
